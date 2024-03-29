@@ -7,54 +7,79 @@
 #include <netinet/in.h>
 #include <signal.h>
 
-void error(const char *msg)
-{
+void error(const char *msg) {
     perror(msg);
     exit(1);
 }
 
-void crequest(int newsockfd) {
-    int n;
-    int num1, num2, ans, choice;
-    
-    do {
-        n = write(newsockfd, "Enter number 1: ", strlen("Enter number 1: ")); // Ask the client to enter number 1
-        if(n < 0) error("Error writing to socket.");
-        read(newsockfd, &num1, sizeof(int)); // read the number 1 from client
-        printf("Client - Number 1 is: %d\n", num1);
+void executeCommand(int sock, const char *cmd) {
+    FILE *fp;
+    char path[1035];
 
-        n = write(newsockfd, "Enter number 2: ", strlen("Enter number 2: "));
-        if(n < 0) error("Error writing to socket.");
-        read(newsockfd, &num2, sizeof(int));
-        printf("Client - Number 2 is: %d\n", num2);
+    // Ensure the command is safe and will terminate. Adjust as needed.
+    fp = popen(cmd, "r");
+    if (fp == NULL) {
+        printf("Failed to run command\n");
+        write(sock, "Failed to run command\n", 22); // Inform the client of failure
+        return; // Exit the function
+    }
 
-        n = write(newsockfd, "Enter your choice: \n1. Addition\n2. Subtraction\n3. Multiplication\n4. Division\n5. Exit\n", strlen("Enter your choice: \n1. Addition\n2. Subtraction\n3. Multiplication\n4. Division\n5. Exit\n"));
-        if(n < 0) error("Error writing to socket.");
-        read(newsockfd, &choice, sizeof(int));
-        printf("Client - Choice is: %d\n", choice);
+    // Read and send the output
+    while (fgets(path, sizeof(path)-1, fp) != NULL) {
+        write(sock, path, strlen(path));
+    }
 
-        switch(choice) {
-            case 1:
-                ans = num1 + num2;
-                break;
-            case 2:
-                ans = num1 - num2;
-                break;
-            case 3:
-                ans = num1 * num2;
-                break;
-            case 4:
-                ans = num1 / num2;
-                break;
-            case 5:
-                break;
-        }
+    // Ensure to signal the client that command execution is done
+    write(sock, "END\n", 4);
 
-        write(newsockfd, &ans, sizeof(int)); // send answer to client
-    } while(choice != 5);
-
-    close(newsockfd); // Close client socket
+    pclose(fp);
 }
+void crequest(int newsockfd) {
+    char buffer[256];
+    bzero(buffer, 256);
+    int n = read(newsockfd, buffer, 255);
+    if (n <= 0) return;
+
+    buffer[n] = '\0';
+
+    printf("Received command: %s\n", buffer);
+
+    // Check if the command is "dirlist -a"
+    if (strncmp("dirlist -a", buffer, 10) == 0) {
+        executeCommand(newsockfd, "ls -l");
+    } 
+    // Check if the command is "quitc" and exit the process
+    else if (strncmp("quitc", buffer, 5) == 0) {
+        printf("Quit command received. Exiting child process.\n");
+        exit(0); // Explicitly exit the child process
+    } 
+    else {
+        char* invalidCommand = "Invalid command\n";
+        write(newsockfd, invalidCommand, strlen(invalidCommand));
+    }
+
+    // Send end of message in all cases, except for quitc since it exits the process
+    char* endOfMessage = "END\n";
+    write(newsockfd, endOfMessage, strlen(endOfMessage));
+}
+
+// void crequest(int newsockfd) {
+//     char buffer[256];
+//     bzero(buffer, 256);
+//     int n = read(newsockfd, buffer, 255); // Read command from client
+//     if (n <= 0) return;
+
+//     buffer[n] = '\0'; // Ensure null-termination
+
+//     printf("Received command: %s\n", buffer);
+
+//     // Execute the command directly without validation
+//     executeCommand(newsockfd, "ls -l");
+
+//     char* endOfMessage = "END\n";
+//     write(newsockfd, endOfMessage, strlen(endOfMessage));
+// }
+
 
 int main(int argc, char *argv[]) {
     if(argc < 2) {
@@ -65,7 +90,7 @@ int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     socklen_t clilen;
     struct sockaddr_in serv_addr, cli_addr;
-    
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0) error("Error opening socket.");
 
@@ -91,17 +116,17 @@ int main(int argc, char *argv[]) {
             error("Error on fork.");
         }
 
-        if(pid == 0) { // This is the child process
-            close(sockfd); // Close the original socket in the child
+        if(pid == 0) { // Child process
+            close(sockfd);
             crequest(newsockfd);
             exit(0);
         }
         else {
-            close(newsockfd); // Close the new socket in the parent
-            signal(SIGCHLD, SIG_IGN); // Ignore the child signal
+            close(newsockfd);
+            signal(SIGCHLD, SIG_IGN);
         }
     }
 
-    close(sockfd); // Close socket
+    close(sockfd);
     return 0;
 }

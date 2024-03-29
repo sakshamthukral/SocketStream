@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,83 +5,96 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> // defines the structure hostent, hostent is used to store information about a host like IP address, host name, etc.
+#include <netdb.h>
 
-void error(const char *msg)
-{
+void error(const char *msg) {
     perror(msg);
     exit(1);
 }
 
-int main(int argc, char *argv[]){ // two paragmeters, filename and port number
-    if(argc < 3){
+int main(int argc, char *argv[]) {
+    if(argc < 3) {
         fprintf(stderr, "Usage %s hostname port\n", argv[0]);
         exit(1);
     }
 
-    int sockfd, portno,n;
+    int sockfd, portno;
     struct sockaddr_in serv_addr;
-    struct hostent *server; // pointer to hostent structure
+    struct hostent *server;
 
-    char buffer[255]; // buffer to store message
-    
-    portno = atoi(argv[2]); // convert port number from string to integer
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); // create socket, AF_INET is domain, SOCK_STREAM is type of socket, 0 is protocol
-    if(sockfd < 0){
-        error("Error opening socket.");
-    }
+    portno = atoi(argv[2]);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sockfd < 0) error("Error opening socket.");
 
-    server = gethostbyname(argv[1]); // get the host name from the command line argument
-    if(server == NULL){
-        fprintf(stderr, "Error, no such host.");
+    server = gethostbyname(argv[1]);
+    if(server == NULL) {
+        fprintf(stderr, "Error, no such host\n");
+        exit(0);
     }
 
-    bzero((char *) &serv_addr, sizeof(serv_addr)); // clear the server address
-    serv_addr.sin_family = AF_INET; // set domain
-    bcopy((char *)server->h_addr_list[0], (char *)&serv_addr.sin_addr.s_addr, server->h_length); // copy the server address to the server structure
-    serv_addr.sin_port = htons(portno); // set port number of server, htonl and htons are used to convert host byte order to network byte order, htonl is for long and htons is for short
-    if(connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0){ // connect to the server
-        error("Connection failed.");
-    }
-    //--------------------------------------------------------------------------------
-    int num1, num2, ans, choice;
-    S:bzero(buffer, 255); // clear the buffer
-    n = read(sockfd, buffer, 255); // read the message from server
-    if(n < 0){
-        error("Error reading from socket.");
-    }
-    printf("Server - %s\n", buffer); // print the message from server
-    scanf("%d", &num1); // get the number 1 from user
-    write(sockfd, &num1, sizeof(int)); // send the number 1 to server
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr_list[0], (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+    serv_addr.sin_port = htons(portno);
 
-    bzero(buffer, 255); // clear the buffer
-    n = read(sockfd, buffer, 255); // read the message from server
-    if(n < 0){
-        error("Error reading from socket.");
-    }
-    printf("Server - %s\n", buffer); // print the message from server
-    scanf("%d", &num2); // get the number 2 from user
-    write(sockfd, &num2, sizeof(int)); // send the number 2 to server
+    if(connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
+        error("Connection Failed.");
 
-    bzero(buffer, 255); // clear the buffer
-    n = read(sockfd, buffer, 255); // read the message from server
-    if(n < 0){
-        error("Error reading from socket.");
-    }
-    printf("Server - %s\n", buffer); // print the message from server
-    scanf("%d", &choice); // get the choice from user
-    write(sockfd, &choice, sizeof(int)); // send the choice to server
+    char command[256];
+    while(1) {
+        printf("Enter command: ");
+        bzero(command, 256);
+        fgets(command, 255, stdin);
+        command[strcspn(command, "\n")] = 0; // Remove newline character
 
-    if(choice == 5){
-        goto Q;
+        // Exit command
+        if (strcmp(command, "exit") == 0) {
+            printf("Exiting...\n");
+            break;
+        }
+        
+        // Valid command: "dirlist -a"
+        else if (strcmp(command, "dirlist -a") == 0) {
+            // If valid, proceed with sending it to the server
+            write(sockfd, command, strlen(command));
+        }
+        
+        // Valid command: "quitc"
+        else if (strcmp(command, "quitc") == 0) {
+            // If "quitc", send it to the server and then break the loop
+            write(sockfd, command, strlen(command));
+            break;
+        }
+
+        // Any other command is invalid
+        else {
+            printf("Invalid command. Please enter 'dirlist -a', 'quitc', or 'exit'.\n");
+            continue; // Ask for the command again
+        }
+
+        // Read server's response (only for "dirlist -a")
+        if (strcmp(command, "dirlist -a") == 0) {
+            char buffer[1024];
+            int endReceived = 0;
+            while(!endReceived) {
+                bzero(buffer, 1024);
+                int n = read(sockfd, buffer, 1023);
+                if(n <= 0) {
+                    // If read error or nothing more to read, break out of the loop
+                    break;
+                }
+                buffer[n] = '\0'; // Ensure null-termination
+
+                // Check for end of message
+                if(strstr(buffer, "END") != NULL) {
+                    endReceived = 1;
+                    *strstr(buffer, "END") = '\0'; // Trim "END" from output
+                }
+                printf("%s", buffer);
+            }
+        }
     }
-    read(sockfd, &ans, sizeof(int)); // read the answer from server
-    printf("Server - The answer is: %d\n", ans); // print the answer from server
-    if(choice != 5){
-        goto S;
-    }
-    Q:
-    printf("You chose to exit\n");
+
     close(sockfd);
     return 0;
 }
