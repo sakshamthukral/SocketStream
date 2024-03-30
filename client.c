@@ -40,11 +40,11 @@ int main(int argc, char *argv[]) {
     if(connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
         error("Connection Failed.");
 
-    char command[256];
+    char command[1024];
     while(1) {
         printf("Enter command: ");
-        bzero(command, 256);
-        fgets(command, 255, stdin);
+        bzero(command, 1024);
+        fgets(command, 1024, stdin);
         command[strcspn(command, "\n")] = 0; // Remove newline character
 
         // Exit command
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
         // Valid command: "dirlist -a"
         else if (strcmp(command, "dirlist -a") == 0) {
             // If valid, proceed with sending it to the server
-            write(sockfd, command, strlen(command));
+            write(sockfd, command, strlen(command)); 
         }
         
         // Valid command: "quitc"
@@ -73,26 +73,27 @@ int main(int argc, char *argv[]) {
         }
 
         // Read server's response (only for "dirlist -a")
-        if (strcmp(command, "dirlist -a") == 0) {
-            char buffer[1024];
-            int endReceived = 0;
-            while(!endReceived) {
-                bzero(buffer, 1024);
-                int n = read(sockfd, buffer, 1023);
-                if(n <= 0) {
-                    // If read error or nothing more to read, break out of the loop
-                    break;
-                }
-                buffer[n] = '\0'; // Ensure null-termination
-
-                // Check for end of message
-                if(strstr(buffer, "END") != NULL) {
-                    endReceived = 1;
-                    *strstr(buffer, "END") = '\0'; // Trim "END" from output
-                }
-                printf("%s", buffer);
-            }
+        // char buffer[4048];
+        // int n;
+        // while((n = read(sockfd, buffer, sizeof(buffer)-1)) > 0) {
+        //     buffer[n] = '\0'; // You mentioned not needing to append null, but this is for printf
+        //     printf("%s", buffer);
+        //     if (strcmp(buffer, "END\n") == 0) {
+        //         break; // Break the reading loop to allow a new command input
+        //     }
+        // }
+        // if (n < 0) {
+        //     error("ERROR reading from socket");
+        // }
+        char buffer[4048];
+        int n;
+        n = read(sockfd, buffer, sizeof(buffer)-1);
+        if (n < 0) {
+            error("ERROR reading from socket");
         }
+        buffer[n] = '\0';
+        printf("%s\n", buffer);
+
     }
 
     close(sockfd);
