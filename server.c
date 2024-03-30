@@ -9,7 +9,7 @@
 #include <arpa/inet.h> // Include for inet_addr
 
 int total_connections = 0;
-char outputBuff[4048];
+char outputBuff[4096];
 
 void error(const char *msg) {
     perror(msg);
@@ -61,98 +61,65 @@ void executeCommand(const char *cmd) {
 
 void crequest(int newsockfd, int sockfd_mirror1, int sockfd_mirror2) {
     if(determinServer() == 2){
-        // char endOfCommandSignal[] = "END\n";
         while(1){
-            char buffer[1024];
-            bzero(buffer, 1024);
-            int n = read(newsockfd, buffer, 1023); // Read the command from the client
-            if (n <= 0) return;
-            printf("Received command in server: %s\n", buffer);
-
-            write(sockfd_mirror1, buffer, strlen(buffer));//
             // char buffer[1024];
-            // int n;
-            bzero(buffer, 1024);
-            n = read(sockfd_mirror1, buffer, sizeof(buffer)-1);
-            write(newsockfd, buffer, n);
-                // buffer[n] = '\0'; // You mentioned not needing to append null, but this is for printf
-                // printf("%s", buffer);
+            memset(outputBuff, 0, sizeof(outputBuff));
+            int n = read(newsockfd, outputBuff, 4096); // Read the command from the client
+            if (n <= 0){
+                return;
+            }
+            // printf("Received command in server: %s\n", outputBuff);
+            write(sockfd_mirror1, outputBuff, strlen(outputBuff));
+            memset(outputBuff, 0, sizeof(outputBuff));
+            n = read(sockfd_mirror1, outputBuff, sizeof(outputBuff)-1);
+            write(newsockfd, outputBuff, n);
             if (n < 0) {
                 error("ERROR reading from socket");
             }
-            // printf("End of command\n");
-            // write(newsockfd, endOfCommandSignal, strlen(endOfCommandSignal));
         }
     } else if(determinServer() == 3){
-        while (1)
-        {
-            char buffer[1024];
-            bzero(buffer, 1024);
-            int n = read(newsockfd, buffer, 1023);
-            if (n <= 0) return;
-
-            write(sockfd_mirror2, buffer, strlen(buffer));
+        while(1){
             // char buffer[1024];
-            // int n;
-            while((n = read(sockfd_mirror2, buffer, sizeof(buffer)-1)) > 0) {
-                write(newsockfd, buffer, n);
-                // buffer[n] = '\0'; // You mentioned not needing to append null, but this is for printf
-                // printf("%s", buffer);
+            memset(outputBuff, 0, sizeof(outputBuff));
+            int n = read(newsockfd, outputBuff, 4096); // Read the command from the client
+            if (n <= 0){
+                return;
             }
+            // printf("Received command in server: %s\n", outputBuff);
+            write(sockfd_mirror2, outputBuff, strlen(outputBuff));
+            memset(outputBuff, 0, sizeof(outputBuff));
+            n = read(sockfd_mirror2, outputBuff, sizeof(outputBuff)-1);
+            write(newsockfd, outputBuff, n);
             if (n < 0) {
                 error("ERROR reading from socket");
             }
         }
     } else {
         while(1){
-        char buffer[256];
-        bzero(buffer, 256);
-        int n = read(newsockfd, buffer, 255);
-        if (n <= 0) return;
+            memset(outputBuff, 0, sizeof(outputBuff));
+            int n = read(newsockfd, outputBuff, 4096);
+            if (n <= 0){
+                return;
+            }
 
-        buffer[n] = '\0';
+            printf("Received command: %s\n", outputBuff);
 
-        printf("Received command: %s\n", buffer);
+            // Check if the command is "dirlist -a"
+            if (strncmp("dirlist -a", outputBuff, 10) == 0) {
+                executeCommand("ls");
+                write(newsockfd, outputBuff, strlen(outputBuff));
+            } 
+            // Check if the command is "quitc" and exit the process
+            else if (strncmp("quitc", outputBuff, 5) == 0) {
+                printf("Quit command received. Exiting child process.\n");
+                exit(0); // Explicitly exit the child process
+            } 
+            else {
+                char* invalidCommand = "Invalid command\n";
+                write(newsockfd, invalidCommand, strlen(invalidCommand));
+            }
 
-        // Check if the command is "dirlist -a"
-        if (strncmp("dirlist -a", buffer, 10) == 0) {
-            executeCommand("ls");
-            write(newsockfd, outputBuff, strlen(outputBuff));
-        } 
-        // Check if the command is "quitc" and exit the process
-        else if (strncmp("quitc", buffer, 5) == 0) {
-            printf("Quit command received. Exiting child process.\n");
-            exit(0); // Explicitly exit the child process
-        } 
-        else {
-            char* invalidCommand = "Invalid command\n";
-            write(newsockfd, invalidCommand, strlen(invalidCommand));
         }
-
-    }
-    // Check if the command is "dirlist -a"
-        // char buffer[256];
-        // bzero(buffer, 256);
-        // int n = read(newsockfd, buffer, 255);
-        // if (n <= 0) return;
-        // buffer[n] = '\0';
-        // printf("Received command: %s\n", buffer);
-        // if (strncmp("dirlist -a", buffer, 10) == 0) {
-        //     executeCommand(newsockfd, "ls -l");
-        // } 
-        // // Check if the command is "quitc" and exit the process
-        // else if (strncmp("quitc", buffer, 5) == 0) {
-        //     printf("Quit command received. Exiting child process.\n");
-        //     exit(0); // Explicitly exit the child process
-        // } 
-        // else {
-        //     char* invalidCommand = "Invalid command\n";
-        //     write(newsockfd, invalidCommand, strlen(invalidCommand));
-        // }
-
-        // // Send end of message in all cases, except for quitc since it exits the process
-        // // char* endOfMessage = "END\n";
-        // // write(newsockfd, endOfMessage, strlen(endOfMessage));
     }
 }
 

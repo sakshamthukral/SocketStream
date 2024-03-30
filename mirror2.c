@@ -11,75 +11,64 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
+char outputBuff[4096];
 
-void executeCommand(int sock, const char *cmd) {
+void executeCommand(const char *cmd) {
     FILE *fp;
-    char path[1035];
+    char command[1050];
+    // Ensure the buffer is clean
+    memset(outputBuff, 0, sizeof(outputBuff));
 
-    // Ensure the command is safe and will terminate. Adjust as needed.
-    fp = popen(cmd, "r");
+    // Prepend "cd ~ && " to run the command in the home directory
+    snprintf(command, sizeof(command), "cd ~ && %s", cmd);
+
+    // Open the command for reading
+    fp = popen(command, "r");
     if (fp == NULL) {
         printf("Failed to run command\n");
-        write(sock, "Failed to run command\n", 22); // Inform the client of failure
         return; // Exit the function
     }
 
-    // Read and send the output
-    while (fgets(path, sizeof(path)-1, fp) != NULL) {
-        write(sock, path, strlen(path));
-    }
+    // Read the output into outputBuff
+    fread(outputBuff, 1, sizeof(outputBuff) - 1, fp);
 
-    // Ensure to signal the client that command execution is done
-    // write(sock, "END\n", 4);
+    // Ensure the buffer is null-terminated
+    outputBuff[sizeof(outputBuff) - 1] = '\0';
 
+    // Close the process
     pclose(fp);
+
+    // At this point, outputBuff contains the command's output.
+    // If you need to print or process the output, you can do so after calling executeCommand.
 }
+
 void crequest(int newsockfd) {
-    char buffer[256];
-    bzero(buffer, 256);
-    int n = read(newsockfd, buffer, 255);
-    if (n <= 0) return;
+    while(1){
+            memset(outputBuff, 0, sizeof(outputBuff));
+            int n = read(newsockfd, outputBuff, 4096);
+            if (n <= 0){
+                return;
+            }
 
-    buffer[n] = '\0';
+            printf("Received command: %s\n", outputBuff);
 
-    printf("Received command: %s\n", buffer);
+            // Check if the command is "dirlist -a"
+            if (strncmp("dirlist -a", outputBuff, 10) == 0) {
+                executeCommand("ls");
+                write(newsockfd, outputBuff, strlen(outputBuff));
+            } 
+            // Check if the command is "quitc" and exit the process
+            else if (strncmp("quitc", outputBuff, 5) == 0) {
+                printf("Quit command received. Exiting child process.\n");
+                exit(0); // Explicitly exit the child process
+            } 
+            else {
+                char* invalidCommand = "Invalid command\n";
+                write(newsockfd, invalidCommand, strlen(invalidCommand));
+            }
 
-    // Check if the command is "dirlist -a"
-    if (strncmp("dirlist -a", buffer, 10) == 0) {
-        executeCommand(newsockfd, "ls -l");
-    } 
-    // Check if the command is "quitc" and exit the process
-    else if (strncmp("quitc", buffer, 5) == 0) {
-        printf("Quit command received. Exiting child process.\n");
-        exit(0); // Explicitly exit the child process
-    } 
-    else {
-        char* invalidCommand = "Invalid command\n";
-        write(newsockfd, invalidCommand, strlen(invalidCommand));
-    }
-
-    // Send end of message in all cases, except for quitc since it exits the process
-    // char* endOfMessage = "END\n";
-    // write(newsockfd, endOfMessage, strlen(endOfMessage));
+        }
 }
-
-// void crequest(int newsockfd) {
-//     char buffer[256];
-//     bzero(buffer, 256);
-//     int n = read(newsockfd, buffer, 255); // Read command from client
-//     if (n <= 0) return;
-
-//     buffer[n] = '\0'; // Ensure null-termination
-
-//     printf("Received command: %s\n", buffer);
-
-//     // Execute the command directly without validation
-//     executeCommand(newsockfd, "ls -l");
-
-//     char* endOfMessage = "END\n";
-//     write(newsockfd, endOfMessage, strlen(endOfMessage));
-// }
-
 
 int main(int argc, char *argv[]) {
     if(argc < 2) {

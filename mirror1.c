@@ -11,7 +11,7 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
-char outputBuff[4048];
+char outputBuff[4096];
 
 void executeCommand(const char *cmd) {
     FILE *fp;
@@ -41,33 +41,33 @@ void executeCommand(const char *cmd) {
     // At this point, outputBuff contains the command's output.
     // If you need to print or process the output, you can do so after calling executeCommand.
 }
+
 void crequest(int newsockfd) {
     while(1){
-        char buffer[256];
-        bzero(buffer, 256);
-        int n = read(newsockfd, buffer, 255);
-        if (n <= 0) return;
+            memset(outputBuff, 0, sizeof(outputBuff));
+            int n = read(newsockfd, outputBuff, 4096);
+            if (n <= 0){
+                return;
+            }
 
-        buffer[n] = '\0';
+            printf("Received command: %s\n", outputBuff);
 
-        printf("Received command: %s\n", buffer);
+            // Check if the command is "dirlist -a"
+            if (strncmp("dirlist -a", outputBuff, 10) == 0) {
+                executeCommand("ls");
+                write(newsockfd, outputBuff, strlen(outputBuff));
+            } 
+            // Check if the command is "quitc" and exit the process
+            else if (strncmp("quitc", outputBuff, 5) == 0) {
+                printf("Quit command received. Exiting child process.\n");
+                exit(0); // Explicitly exit the child process
+            } 
+            else {
+                char* invalidCommand = "Invalid command\n";
+                write(newsockfd, invalidCommand, strlen(invalidCommand));
+            }
 
-        // Check if the command is "dirlist -a"
-        if (strncmp("dirlist -a", buffer, 10) == 0) {
-            executeCommand("ls");
-            write(newsockfd, outputBuff, strlen(outputBuff));
-        } 
-        // Check if the command is "quitc" and exit the process
-        else if (strncmp("quitc", buffer, 5) == 0) {
-            printf("Quit command received. Exiting child process.\n");
-            exit(0); // Explicitly exit the child process
-        } 
-        else {
-            char* invalidCommand = "Invalid command\n";
-            write(newsockfd, invalidCommand, strlen(invalidCommand));
         }
-
-    }
 }
 
 int main(int argc, char *argv[]) {

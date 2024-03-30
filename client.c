@@ -72,20 +72,7 @@ int main(int argc, char *argv[]) {
             continue; // Ask for the command again
         }
 
-        // Read server's response (only for "dirlist -a")
-        // char buffer[4048];
-        // int n;
-        // while((n = read(sockfd, buffer, sizeof(buffer)-1)) > 0) {
-        //     buffer[n] = '\0'; // You mentioned not needing to append null, but this is for printf
-        //     printf("%s", buffer);
-        //     if (strcmp(buffer, "END\n") == 0) {
-        //         break; // Break the reading loop to allow a new command input
-        //     }
-        // }
-        // if (n < 0) {
-        //     error("ERROR reading from socket");
-        // }
-        char buffer[4048];
+        char buffer[4096];
         int n;
         n = read(sockfd, buffer, sizeof(buffer)-1);
         if (n < 0) {
