@@ -114,6 +114,11 @@ int main(int argc, char *argv[]) {
             // char *tarFlag = "TAR";
             // write(sockfd, tarFlag, strlen(original_command));
             write(sockfd, original_command, strlen(original_command));
+        }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 0 && arg_count < 4) {
+            // If "quitc", send it to the server and then break the loop
+            // char *tarFlag = "TAR";
+            // write(sockfd, tarFlag, strlen(original_command));
+            write(sockfd, original_command, strlen(original_command));
         }
         else if (strcmp(args[0], "quitc") == 0) {
             // If "quitc", send it to the server and then break the loop
@@ -124,8 +129,11 @@ int main(int argc, char *argv[]) {
                 printf("Invalid command. Please enter 'dirlist -a', 'dirlist -t', 'w24fn <filename>', 'quitc', or 'exit'.\n");
                 continue; // Ask for the command again
         }
+
+
+        //------------------------ Read from server ------------------------
             
-        if (strcmp(args[0], "w24fz") == 0 && arg_count == 3) {
+        if ((strcmp(args[0], "w24fz") == 0 && arg_count == 3) || (strcmp(args[0], "w24ft") == 0 && arg_count < 4)){
             // Special handling for file receive mode
             char *filename = "temp.tar.gz";
             if (receive_file(sockfd, filename) == 0) {

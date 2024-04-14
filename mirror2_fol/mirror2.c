@@ -13,11 +13,13 @@
 #include <time.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #define MAX_PATH_LENGTH 4096
 #define MAX_DIRECTORIES 100
 #define OUTPUT_BUFF_SIZE 4096
 #define MAX_COMMAND_LEN 1024
+#define BUFFER_SIZE 4096
 char outputBuff[OUTPUT_BUFF_SIZE];
 char command[1024];
 
@@ -26,6 +28,13 @@ struct Directory {
     time_t birth_time;
 };
 
+struct FileInfo {
+    char name[MAX_PATH_LENGTH];
+    char location[MAX_PATH_LENGTH];
+    off_t size;
+    time_t creation_time;
+    mode_t permissions;
+};
 void error(const char *msg);
 void list_directories(const char *path);
 void executeCommand(const char *cmd);
@@ -38,15 +47,343 @@ int compare_directories(const void *a, const void *b);
 void handle_search_file(const char *filename);
 void remove_file(const char *filename);
 int send_file_to_client(const char *file_name, int socket_fd);
+void get_tar_w24fz(off_t size1, off_t size2);
+void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *temp_folder);
+void copy_file_w24fz(const char *src, const char *dest);
+void create_tar_gz(const char *folder_path);
+int remove_directory(const char *dir_path);
+int is_file_of_type_w24ft(const char *filename, const char *extension);
+void search_directory_w24ft(const char *dir_path, const char *extensions[], int num_extensions, int *found, const char *temp_dir);
+void create_temp_dir();
+void get_tar_w24ft(const char *extensions[],int argc);
+
+// ----------------- w24ft -----------------
+
+int is_file_of_type_w24ft(const char *filename, const char *extension) {
+    printf("Filename: %s\n", filename);
+    printf("Extension: %s\n", extension);
+    size_t filename_len = strlen(filename);
+    size_t extension_len = strlen(extension);
+    if (filename_len < extension_len + 1)
+        return 0;
+    return strcmp(filename + filename_len - extension_len, extension) == 0;
+}
+
+void search_directory_w24ft(const char *dir_path, const char *extensions[], int num_extensions, int *found, const char *temp_dir) {
+    DIR *dir;
+    struct dirent *entry;
+    char full_path[MAX_PATH_LENGTH];
+
+    if ((dir = opendir(dir_path)) == NULL) {
+        perror("opendir");
+        exit(EXIT_FAILURE);
+    }
+    printf("Extensions: %d\n", num_extensions);
+    for (int i = 0; i < num_extensions; i++) {
+        printf("Extension: %s\n", extensions[i]);
+    }
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+            // Skip the 'temp' directory
+            if (strcmp(entry->d_name, temp_dir) == 0 && strcmp(dir_path, getcwd(NULL, 0))==0) {
+                continue;
+            }
+
+            snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+            search_directory_w24ft(full_path, extensions, num_extensions, found, temp_dir);
+        } else if (entry->d_type == DT_REG) {
+            for (int i = 0; i < num_extensions; ++i) {
+                if (is_file_of_type_w24ft(entry->d_name, extensions[i])) {
+                    // printf("%s/%s\n", dir_path, entry->d_name);
+                    char source_file[MAX_PATH_LENGTH];
+                    char dest_file[MAX_PATH_LENGTH];
+                    snprintf(source_file, sizeof(source_file), "%s/%s", dir_path, entry->d_name);
+                    snprintf(dest_file, sizeof(dest_file), "%s/%s", temp_dir, entry->d_name);
+                    int source_fd, dest_fd;
+                    ssize_t bytes_read, bytes_written;
+                    char buffer[BUFFER_SIZE];
+
+                    // Open source file for reading
+                    if ((source_fd = open(source_file, O_RDONLY)) == -1) {
+                        perror("open");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // Create or open destination file for writing
+                    if ((dest_fd = open(dest_file, O_CREAT | O_WRONLY | O_TRUNC, 0644)) == -1) {
+                        perror("open");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // Copy data from source file to destination file
+                    while ((bytes_read = read(source_fd, buffer, BUFFER_SIZE)) > 0) {
+                        bytes_written = write(dest_fd, buffer, bytes_read);
+                        if (bytes_written != bytes_read) {
+                            perror("write");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+
+                    if (bytes_read == -1) {
+                        perror("read");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // Close file descriptors
+                    if (close(source_fd) == -1 || close(dest_fd) == -1) {
+                        perror("close");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    *found = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+void create_temp_dir() {
+    const char *temp_folder = "temp";
+    // Folder already exists, remove and recreate
+    if (remove_directory(temp_folder) == -1) {
+    fprintf(stderr, "Failed to remove existing temp folder\n");
+    return;
+    }
+    // Create temp directory
+    if (mkdir(temp_folder, S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
+        perror("mkdir");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void get_tar_w24ft(const char *extensions[],int argc)
+{ // print extensions
+    // printf("inside get taeargc: %d\n", argc);
+    // for (int i = 0; i < argc ; ++i) {
+    //     printf("Extension: %s\n", extensions[i]);
+    //     printf("Length of extension: %ld\n", strlen(extensions[i]));
+    // }
+
+    const char *temp_folder = "temp";
+
+    //create_temp_directory(temp_dir_path);
+    printf("Before creating temp directory\n");
+    create_temp_dir();
+    printf("After creating temp directory\n");
+    const char *home_dir = getenv("HOME");
+    printf("Home directory: %s\n", home_dir);
+    if (home_dir == NULL) {
+        fprintf(stderr, "Failed to get user's home directory\n");
+        return;
+    }
 
 
-struct FileInfo {
-    char name[MAX_PATH_LENGTH];
-    char location[MAX_PATH_LENGTH];
-    off_t size;
-    time_t creation_time;
-    mode_t permissions;
-};
+    int found = 0;
+    printf("-------------------------------------\n");
+    printf("Home directory: %s\n", home_dir);
+    printf("Extensions: %d\n", argc - 1);
+    for (int i = 0; i < argc - 1; ++i) {
+        printf("Extension: %s\n", extensions[i]);
+        printf("length of extensions: %ld\n", strlen(extensions[i]));
+    }
+    search_directory_w24ft(home_dir, extensions, argc - 1, &found, temp_folder);
+
+    if (!found) {
+        printf("No files found\n");
+        return;
+    }
+//  const char *temp_folder = "temp";
+    // Create tar file of the temp folder
+    create_tar_gz(temp_folder);
+    // To remove temp after tar creation
+
+    if (remove_directory(temp_folder) == -1) {
+    fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
+    return;
+    }
+}
+// ----------------- w24fz -----------------
+
+void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *temp_folder) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat statbuf;
+    char full_path[MAX_PATH_LENGTH];
+
+    if ((dir = opendir(path)) == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        snprintf(full_path, MAX_PATH_LENGTH, "%s/%s", path, entry->d_name);
+        if (lstat(full_path, &statbuf) == -1) {
+            perror("lstat");
+            continue;
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            // Skip the 'temp' directory
+                if (strcmp(entry->d_name, temp_folder) == 0 && strcmp(path, getcwd(NULL, 0)) == 0){
+                continue;
+            }
+            search_files_w24fz(full_path, size1, size2, temp_folder);
+        } else if (S_ISREG(statbuf.st_mode)) {
+            off_t file_size = statbuf.st_size;
+            if (file_size >= size1 && file_size <= size2) {
+                printf("%s\n", full_path);
+                // Copy the file to the temp folder
+                char temp_file_path[MAX_PATH_LENGTH];
+                snprintf(temp_file_path, MAX_PATH_LENGTH, "%s/%s", temp_folder, entry->d_name);
+                copy_file_w24fz(full_path, temp_file_path);
+            }
+        }
+    }
+
+    closedir(dir);
+}
+void copy_file_w24fz(const char *src, const char *dest) {
+    int src_fd, dest_fd;
+    ssize_t bytes_read;
+    char buffer[BUFFER_SIZE];
+
+    src_fd = open(src, O_RDONLY);
+    if (src_fd == -1) {
+        perror("open");
+        return;
+    }
+
+    dest_fd = open(dest, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (dest_fd == -1) {
+        perror("open");
+        close(src_fd);
+        return;
+    }
+
+    while ((bytes_read = read(src_fd, buffer, BUFFER_SIZE)) > 0) {
+        if (write(dest_fd, buffer, bytes_read) != bytes_read) {
+            perror("write");
+            close(src_fd);
+            close(dest_fd);
+            return;
+        }
+    }
+
+    if (bytes_read == -1) {
+        perror("read");
+    }
+
+    close(src_fd);
+    close(dest_fd);
+}
+void create_tar_gz(const char *folder_path) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return;
+    }
+    if (pid == 0) {
+        // Child process
+        execlp("tar", "tar", "-czf", "temp.tar.gz", folder_path, (char *)NULL);
+        perror("execlp");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process
+        int status;
+        waitpid(pid, &status, 0);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            fprintf(stderr, "Failed to create tar file\n");
+        } else {
+            printf("Tar file created successfully: temp.tar.gz\n");
+        }
+    }
+}
+int remove_directory(const char *dir_path) {
+    pid_t pid;
+    int status;
+
+    pid = fork();
+
+    if (pid < 0) {
+        // Fork failed
+        perror("Fork failed");
+        return -1;
+    } else if (pid == 0) {
+        // Child process
+        //char *programname = "rm";
+        //char *args[] = {"rm", "-rf", dir_path, NULL};
+        //execvp(programname, args);
+        const char *args[] = {"rm", "-rf", dir_path, NULL};
+        execvp(args[0], (char *const *)args);
+        // If execvp returns, it must have failed
+        perror("Execvp failed");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process
+        // Wait for the child process to finish
+        waitpid(pid, &status, 0);
+
+        // Check if child process exited normally
+        if (WIFEXITED(status)) {
+            int exit_status = WEXITSTATUS(status);
+            if (exit_status == 0) {
+                printf("Directory %s removed successfully.\n", dir_path);
+                return 0;
+            } else {
+                fprintf(stderr, "Failed to remove directory %s. Exit status: %d\n", dir_path, exit_status);
+                return -1;
+            }
+        } else {
+            fprintf(stderr, "Child process did not exit normally.\n");
+            return -1;
+        }
+    }
+}
+void get_tar_w24fz(off_t size1, off_t size2){
+   const char *home_dir = getenv("HOME");
+    if (home_dir == NULL) {
+        fprintf(stderr, "Failed to get user's home directory\n");
+        return;
+    }
+
+    printf("Files in the directory tree rooted at %s with sizes between %lld and %lld bytes:\n", home_dir, (long long)size1, (long long)size2);
+
+    // Create or recreate the temp folder
+    const char *temp_folder = "temp";
+    if (mkdir(temp_folder, 0777) == -1) {
+        if (errno != EEXIST) {
+            perror("mkdir");
+            return;
+        } else {
+            // Folder already exists, remove and recreate
+            if (remove_directory(temp_folder) == -1) {
+                fprintf(stderr, "Failed to remove existing temp folder\n");
+                return;
+            }
+            if (mkdir(temp_folder, 0777) == -1) {
+                perror("mkdir");
+                return;
+            }
+        }
+    }
+
+    search_files_w24fz(home_dir, size1, size2, temp_folder);
+    // Create tar file of the temp folder
+    create_tar_gz(temp_folder);
+    // To remove temp after tar creation
+    printf("Attempting to remove temp folder from: %s\n", getcwd(NULL, 0));
+if (remove_directory(temp_folder) == -1) {
+    fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
+    return;
+}
+}
 // Function to parse birth time from stat output
 time_t parse_birth_time(const char *stat_output) {
     char *line = strtok((char *)stat_output, "\n");
@@ -210,7 +547,6 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
-
 
 int compare_directories(const void *a, const void *b) {
     const struct Directory *dir1 = (const struct Directory *)a;
@@ -452,16 +788,35 @@ void crequest(int newsockfd) {
                 printf("Output buffer: %s\n", outputBuff);
                 write(newsockfd, outputBuff, strlen(outputBuff));
             }
-     
             else if (strncmp("w24fz",cmd, 5) == 0){
-                int size1 = atoi(strtok(NULL, " "));
-                int size2 = atoi(strtok(NULL, " "));
-                // printf("Size1: %d, Size2: %d\n", size1, size2);
+                off_t size1 = atoll(strtok(NULL, " "));
+                off_t size2 = atoll(strtok(NULL, " "));
+                get_tar_w24fz(size1,size2);
                 char *filename = "temp.tar.gz";
                 send_file_to_client(filename, newsockfd);
-                // printf("Output buffer: %s\n", outputBuff);
-                // write(newsockfd, outputBuff, strlen(outputBuff));
-            } 
+            } else if (strncmp("w24ft",cmd, 5) == 0){
+                char *ext[3]; // Adjust size as needed
+                int arg_count = 0;
+                char *token;
+                while ((token = strtok(NULL, " ")) != NULL) {
+                    ext[arg_count++] = strdup(token); // Copy the argument to the array
+                }
+                const char *extensions[4];
+                // const char *extensions[arg_count+1]; // Adjust size as needed
+                for (int i = 0; i < arg_count; i++) {
+                    extensions[i] = ext[i]; // Initialize extensions array with values from ext
+                }
+                for (int i = 0; i < arg_count; i++) {
+                    printf("Extension: %s\n", extensions[i]);
+                }
+                get_tar_w24ft(extensions,arg_count+1);
+                printf("Sending file to client\n");
+                char *filename = "temp.tar.gz";
+                send_file_to_client(filename, newsockfd);
+                for (int i = 0; i < arg_count; i++) {
+                    free(ext[i]);
+                }
+            }
             // Check if the command is "quitc" and exit the process
             else if (strncmp("quitc", outputBuff, 5) == 0) {
                 printf("Quit command received. Exiting child process.\n");
