@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #define BUFFER_SIZE 4096
 
@@ -21,32 +22,44 @@ int receive_file(int sockfd, const char *filename) {
     ssize_t bytes_read, total_bytes_read = 0;
     off_t file_size;
     char buffer[BUFFER_SIZE];
-    
-    file_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (file_fd < 0) {
-        perror("Failed to open file for writing");
-        return -1;
-    }
+    char message[14];
+    int bt_read = read(sockfd, message, 13);
+    message[13] = '\0'; // Null-terminate the message
+    printf("Bytes read: %d\n", bt_read);
+    if (strcmp(message, "No file found") == 0) {
 
-    read(sockfd, &file_size, sizeof(file_size));
-    printf("File size: %ld\n", file_size);
+        printf("%s\n",message);
+        return 0;
+    }else{
+        printf("%s\n",message);
+        
+        read(sockfd, &file_size, sizeof(file_size));
+        printf("File size: %ld\n", file_size);
 
-    while (total_bytes_read < file_size) {
-        bytes_read = read(sockfd, buffer, sizeof(buffer));
-        if (bytes_read < 0) {
-            perror("Failed to read from socket");
-            close(file_fd);
+        file_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (file_fd < 0) {
+            perror("Failed to open file for writing");
             return -1;
         }
-        total_bytes_read += bytes_read;
-        bytes_written = write(file_fd, buffer, bytes_read);
-        if (bytes_written < 0) {
-            perror("Failed to write to file");
-            close(file_fd);
-            return -1;
+
+        while (total_bytes_read < file_size) {
+            bytes_read = read(sockfd, buffer, sizeof(buffer));
+            if (bytes_read < 0) {
+                perror("Failed to read from socket");
+                close(file_fd);
+                return -1;
+            }
+            total_bytes_read += bytes_read;
+            bytes_written = write(file_fd, buffer, bytes_read);
+            if (bytes_written < 0) {
+                perror("Failed to write to file");
+                close(file_fd);
+                return -1;
+            }
         }
+        close(file_fd);
+        printf("File received and saved successfully.\n");
     }
-    close(file_fd);
     return 0;
 }
 
@@ -108,7 +121,6 @@ int main(int argc, char *argv[]) {
         else if (strcmp(args[0], "w24fn") == 0 && arg_count == 2) {
             // If "w24fn" and there are exactly two arguments, proceed with sending it to the server
             write(sockfd, original_command, strlen(original_command));
-
         } else if (strcmp(args[0], "w24fz") == 0 && arg_count == 3) {
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 0 && arg_count < 4) {
@@ -134,11 +146,7 @@ int main(int argc, char *argv[]) {
         if ((strcmp(args[0], "w24fz") == 0 && arg_count == 3) || (strcmp(args[0], "w24ft") == 0 && arg_count < 4) || (strcmp(args[0], "w24fdb") == 0 && arg_count==2) || (strcmp(args[0], "w24fda") == 0 && arg_count==2)){
             // Special handling for file receive mode
             char *filename = "temp.tar.gz";
-            if (receive_file(sockfd, filename) == 0) {
-                printf("File received and saved successfully.\n");
-            } else {
-                printf("Failed to receive the file.\n");
-            }
+            receive_file(sockfd, filename);
             continue;
         } else {
             // Normal read process for other commands
