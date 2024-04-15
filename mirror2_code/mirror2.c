@@ -56,6 +56,263 @@ int is_file_of_type_w24ft(const char *filename, const char *extension);
 void search_directory_w24ft(const char *dir_path, const char *extensions[], int num_extensions, int *found, const char *temp_dir);
 void create_temp_dir();
 void get_tar_w24ft(const char *extensions[],int argc);
+void get_tar_w24fdb(const char *date);
+void search_files_w24fdb(const char *path);
+// time_t parse_birth_time_w24fdb(const char *stat_output);
+void create_temp_dir_w24fd();
+void search_files_w24fda(const char *path);
+void get_tar_w24fda(const char *date);
+time_t parse_birth_time_w24fd(const char *stat_output);
+char *file_birth_time(const char *file_path);  // Function prototype
+
+
+time_t target_date;
+char temp_dir[MAX_PATH_LENGTH];
+//------------------------ w24fda ------------------------
+void get_tar_w24fda(const char *date){
+    struct tm tm = {0};
+    strptime(date, "%Y-%m-%d", &tm);
+    target_date = mktime(&tm);
+
+    // Create temp directory
+    create_temp_dir_w24fd();
+
+    // Search files and copy them to temp directory
+    const char *home_dir = getenv("HOME");
+    if (home_dir == NULL) {
+        fprintf(stderr, "Failed to get user's home directory\n");
+        return;
+    }
+
+    search_files_w24fda(home_dir);
+    // Create temp.tar.gz archive
+    const char *temp_folder = "temp";
+
+    create_tar_gz(temp_folder);
+     // To remove temp after tar creation
+    if (remove_directory(temp_folder) == -1) {
+    fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
+    return;
+    }
+}
+void search_files_w24fda(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat statbuf;
+    char full_path[MAX_PATH_LENGTH];
+
+    if ((dir = opendir(path)) == NULL) {
+        perror("opendir");
+        return;
+    }
+     const char *temp_folder = "temp";
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue; // Skip current directory, parent directory, and temp directory
+        }
+
+        int required_length = snprintf(NULL, 0, "%s/%s", path, entry->d_name);
+        if (required_length >= MAX_PATH_LENGTH) {
+            fprintf(stderr, "Path length exceeds buffer size\n");
+            continue; // Skip this file or handle error
+        }
+
+        snprintf(full_path, MAX_PATH_LENGTH, "%s/%s", path, entry->d_name);
+
+        if (lstat(full_path, &statbuf) == -1) {
+            perror("lstat");
+            continue; // Failed to get file status
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            // Skip the 'temp' directory
+            if (strcmp(entry->d_name, temp_folder) == 0 && strcmp(path, getcwd(NULL, 0))==0) {
+                continue;
+            }
+            search_files_w24fdb(full_path); // Recursively search subdirectories
+        } else if (S_ISREG(statbuf.st_mode)) {
+            // Try to get birth time
+            char *stat_output = file_birth_time(full_path);
+            if (stat_output != NULL) {
+                time_t birth_time = parse_birth_time_w24fd(stat_output);
+                free(stat_output); // Free allocated memory
+                if (birth_time >= target_date) {
+                    // Copy file to temp directory
+                    char dest_path[MAX_PATH_LENGTH];
+                    snprintf(dest_path, MAX_PATH_LENGTH, "%s/%s", temp_dir, entry->d_name);
+                    int src_fd = open(full_path, O_RDONLY);
+                    int dest_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, statbuf.st_mode);
+                    if (src_fd == -1 || dest_fd == -1) {
+                        perror("open");
+                        continue;
+                    }
+                    char buf[BUFFER_SIZE];
+                    ssize_t num_read;
+                    while ((num_read = read(src_fd, buf, BUFFER_SIZE)) > 0) {
+                        if (write(dest_fd, buf, num_read) != num_read) {
+                            perror("write");
+                            close(src_fd);
+                            close(dest_fd);
+                            continue;
+                        }
+                    }
+                    close(src_fd);
+                    close(dest_fd);
+                    printf("File copied:\n");
+                    printf("Location: %s\n", full_path);
+                    printf("Birth Time: %s", ctime(&birth_time));
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+// ----------------- w24fdb -----------------
+// Function to parse birth time from stat output
+time_t parse_birth_time_w24fd(const char *stat_output) {
+    char *line = strtok((char *)stat_output, "\n");
+    while (line != NULL) {
+        if (strstr(line, "Birth:") != NULL) {
+            line += strlen("Birth: "); // Move to the actual birth time value
+            struct tm tm;
+            strptime(line, "%Y-%m-%d %H:%M:%S", &tm);
+            time_t birth_time = mktime(&tm);
+            return birth_time;
+        }
+        line = strtok(NULL, "\n");
+    }
+    return -1; // Birth time not found
+}
+
+// Function to create temp directory in the home directory
+void create_temp_dir_w24fd() {
+    char *cwd = getcwd(NULL, 0);
+    if (cwd == NULL) {
+        perror("getcwd");
+        return;
+    }
+    snprintf(temp_dir, sizeof(temp_dir), "%s/temp", cwd);
+    // Folder already exists, remove and recreate
+    if (remove_directory(temp_dir) == -1) {
+    fprintf(stderr, "Failed to remove existing temp folder\n");
+    return;
+    }
+    // Create temp2 directory
+    if (mkdir(temp_dir, S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
+        perror("mkdir");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Function to search for files in the directory tree rooted at the specified path
+void search_files_w24fdb(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat statbuf;
+    char full_path[MAX_PATH_LENGTH];
+
+    if ((dir = opendir(path)) == NULL) {
+        perror("opendir");
+        return;
+    }
+     const char *temp_folder = "temp";
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue; // Skip current directory, parent directory, and temp directory
+        }
+
+        int required_length = snprintf(NULL, 0, "%s/%s", path, entry->d_name);
+        if (required_length >= MAX_PATH_LENGTH) {
+            fprintf(stderr, "Path length exceeds buffer size\n");
+            continue; // Skip this file or handle error
+        }
+
+        snprintf(full_path, MAX_PATH_LENGTH, "%s/%s", path, entry->d_name);
+
+        if (lstat(full_path, &statbuf) == -1) {
+            perror("lstat");
+            continue; // Failed to get file status
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            // Skip the 'temp' directory
+            if (strcmp(entry->d_name, temp_folder) == 0 && strcmp(path, getcwd(NULL, 0))==0) {
+                continue;
+            }
+            search_files_w24fdb(full_path); // Recursively search subdirectories
+        } else if (S_ISREG(statbuf.st_mode)) {
+            // Try to get birth time
+            char *stat_output = file_birth_time(full_path);
+            if (stat_output != NULL) {
+                time_t birth_time = parse_birth_time_w24fd(stat_output);
+                free(stat_output); // Free allocated memory
+                if (birth_time <= target_date) {
+                    printf("birtht time: %ld  | target_date: %ld\n", birth_time, target_date);
+                    // Copy file to temp directory
+                    char dest_path[MAX_PATH_LENGTH];
+                    snprintf(dest_path, MAX_PATH_LENGTH, "%s/%s", temp_dir, entry->d_name);
+                    int src_fd = open(full_path, O_RDONLY);
+                    int dest_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, statbuf.st_mode);
+                    if (src_fd == -1 || dest_fd == -1) {
+                        perror("open");
+                        continue;
+                    }
+                    char buf[BUFFER_SIZE];
+                    ssize_t num_read;
+                    while ((num_read = read(src_fd, buf, BUFFER_SIZE)) > 0) {
+                        if (write(dest_fd, buf, num_read) != num_read) {
+                            perror("write");
+                            close(src_fd);
+                            close(dest_fd);
+                            continue;
+                        }
+                    }
+                    close(src_fd);
+                    close(dest_fd);
+                    // printf("File copied:\n");
+                    // printf("Location: %s\n", full_path);
+                    // printf("Birth Time: %s", ctime(&birth_time));
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+void get_tar_w24fdb(const char *date){
+    // Parse target date
+    struct tm tm = {0};
+    strptime(date, "%Y-%m-%d", &tm);
+    tm.tm_hour = 23;
+    tm.tm_min = 59;
+    tm.tm_sec = 59;
+    target_date = mktime(&tm);
+
+    // Create temp directory
+    create_temp_dir_w24fd();
+
+    // Search files and copy them to temp directory
+    const char *home_dir = getenv("HOME");
+    if (home_dir == NULL) {
+        fprintf(stderr, "Failed to get user's home directory\n");
+        return;
+    }
+
+    search_files_w24fdb(home_dir);
+
+    // Create temp.tar.gz archive
+    const char *temp_folder = "temp";
+    create_tar_gz(temp_folder);
+
+    // Remove temp directory after tar creation
+    if (remove_directory(temp_folder) == -1) {
+        fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
+        return;
+    }
+}
+
 
 // ----------------- w24ft -----------------
 
@@ -401,8 +658,8 @@ time_t parse_birth_time(const char *stat_output) {
 }
 // Function to execute the stat command and retrieve output
 char *file_birth_time(const char *file_path) {
-    char stat_cmd[MAX_COMMAND_LEN];
-    snprintf(stat_cmd, MAX_COMMAND_LEN, "stat \"%s\"", file_path);
+    // char stat_cmd[MAX_COMMAND_LEN];
+    // snprintf(stat_cmd, MAX_COMMAND_LEN, "stat \"%s\"", file_path);
 
     int pipefd[2];
     if (pipe(pipefd) == -1) {
@@ -426,7 +683,9 @@ char *file_birth_time(const char *file_path) {
         }
 
         // Execute stat command
-        system(stat_cmd);
+        // system(stat_cmd);
+        execlp("stat", "stat", file_path, NULL);
+        perror("execlp");
         exit(EXIT_SUCCESS);
     } else { // Parent process
         close(pipefd[1]); // Close unused write end
@@ -816,6 +1075,16 @@ void crequest(int newsockfd) {
                 for (int i = 0; i < arg_count; i++) {
                     free(ext[i]);
                 }
+            }else if (strncmp("w24fdb",cmd, 6) == 0){
+                char *date = strtok(NULL, " ");
+                get_tar_w24fdb(date);
+                char *filename = "temp.tar.gz";
+                send_file_to_client(filename, newsockfd);
+            }else if (strncmp("w24fda",cmd, 6) == 0){
+                char *date = strtok(NULL, " ");
+                get_tar_w24fda(date);
+                char *filename = "temp.tar.gz";
+                send_file_to_client(filename, newsockfd);
             }
             // Check if the command is "quitc" and exit the process
             else if (strncmp("quitc", outputBuff, 5) == 0) {

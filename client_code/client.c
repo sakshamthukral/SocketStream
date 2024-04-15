@@ -110,14 +110,13 @@ int main(int argc, char *argv[]) {
             write(sockfd, original_command, strlen(original_command));
 
         } else if (strcmp(args[0], "w24fz") == 0 && arg_count == 3) {
-            // If "quitc", send it to the server and then break the loop
-            // char *tarFlag = "TAR";
-            // write(sockfd, tarFlag, strlen(original_command));
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 0 && arg_count < 4) {
-            // If "quitc", send it to the server and then break the loop
-            // char *tarFlag = "TAR";
-            // write(sockfd, tarFlag, strlen(original_command));
+            write(sockfd, original_command, strlen(original_command));
+        }else if (strcmp(args[0], "w24fdb") == 0 && arg_count==2) {
+            write(sockfd, original_command, strlen(original_command));
+        }else if (strcmp(args[0], "w24fda") == 0 && arg_count==2) {
+            printf("Sending command w24fda\n");
             write(sockfd, original_command, strlen(original_command));
         }
         else if (strcmp(args[0], "quitc") == 0) {
@@ -130,10 +129,9 @@ int main(int argc, char *argv[]) {
                 continue; // Ask for the command again
         }
 
-
         //------------------------ Read from server ------------------------
             
-        if ((strcmp(args[0], "w24fz") == 0 && arg_count == 3) || (strcmp(args[0], "w24ft") == 0 && arg_count < 4)){
+        if ((strcmp(args[0], "w24fz") == 0 && arg_count == 3) || (strcmp(args[0], "w24ft") == 0 && arg_count < 4) || (strcmp(args[0], "w24fdb") == 0 && arg_count==2) || (strcmp(args[0], "w24fda") == 0 && arg_count==2)){
             // Special handling for file receive mode
             char *filename = "temp.tar.gz";
             if (receive_file(sockfd, filename) == 0) {
