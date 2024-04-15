@@ -22,6 +22,8 @@
 #define BUFFER_SIZE 4096
 char outputBuff[OUTPUT_BUFF_SIZE];
 char command[1024];
+int flagForFDB = 0;
+int flagForFDA = 0;
 
 struct Directory {
     char name[MAX_PATH_LENGTH];
@@ -87,8 +89,11 @@ void get_tar_w24fda(const char *date){
     search_files_w24fda(home_dir);
     // Create temp.tar.gz archive
     const char *temp_folder = "temp";
+    if(flagForFDA == 1){
+        create_tar_gz(temp_folder);
+    }
 
-    create_tar_gz(temp_folder);
+    // create_tar_gz(temp_folder);
      // To remove temp after tar creation
     if (remove_directory(temp_folder) == -1) {
     fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
@@ -137,6 +142,7 @@ void search_files_w24fda(const char *path) {
                 time_t birth_time = parse_birth_time_w24fd(stat_output);
                 free(stat_output); // Free allocated memory
                 if (birth_time >= target_date) {
+                    flagForFDA = 1;
                     // Copy file to temp directory
                     char dest_path[MAX_PATH_LENGTH];
                     snprintf(dest_path, MAX_PATH_LENGTH, "%s/%s", temp_dir, entry->d_name);
@@ -248,6 +254,7 @@ void search_files_w24fdb(const char *path) {
                 time_t birth_time = parse_birth_time_w24fd(stat_output);
                 free(stat_output); // Free allocated memory
                 if (birth_time <= target_date) {
+                    flagForFDB = 1;
                     // Copy file to temp directory
                     char dest_path[MAX_PATH_LENGTH];
                     snprintf(dest_path, MAX_PATH_LENGTH, "%s/%s", temp_dir, entry->d_name);
@@ -303,7 +310,9 @@ void get_tar_w24fdb(const char *date){
 
     // Create temp.tar.gz archive
     const char *temp_folder = "temp";
-    create_tar_gz(temp_folder);
+    if(flagForFDB == 1){
+        create_tar_gz(temp_folder);
+    }
 
     // Remove temp directory after tar creation
     if (remove_directory(temp_folder) == -1) {
@@ -1115,7 +1124,7 @@ int main(int argc, char *argv[]) {
     while(1) {
         newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
         if(newsockfd < 0) error("Error on accept.");
-        printf("Inside mirror2\n");
+        printf("Inside mirror-2\n");
         int pid = fork();
         if(pid < 0) {
             error("Error on fork.");
