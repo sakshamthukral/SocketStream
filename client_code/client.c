@@ -25,9 +25,7 @@ int receive_file(int sockfd, const char *filename) {
     char message[14];
     int bt_read = read(sockfd, message, 13);
     message[13] = '\0'; // Null-terminate the message
-    printf("Bytes read: %d\n", bt_read);
     if (strcmp(message, "No file found") == 0) {
-
         printf("%s\n",message);
         return 0;
     }else{
@@ -97,7 +95,7 @@ int main(int argc, char *argv[]) {
         printf("Enter command: ");
         bzero(command, 1024);
         fgets(command, 1024, stdin);
-        command[strcspn(command, "\n")] = 0; // Remove newline character
+        command[strcspn(command, "\n")] = '\0'; // Remove newline character
 
         strcpy(original_command, command);
 
@@ -110,16 +108,12 @@ int main(int argc, char *argv[]) {
             args[arg_count++] = token;
             token = strtok(NULL, " ");
         }
-        for (int i = 0; i < arg_count; i++) {
-            printf("Argument %d: %s\n", i, args[i]);
-        }
 
-        printf("Argument count: %d\n", arg_count);
         if (strcmp(args[0], "exit") == 0) {
             printf("Exiting...\n");
             break;
         }
-        else if (strcmp(args[0], "dirlist") == 0 && (strcmp(args[1], "-a") == 0 || strcmp(args[1], "-t") == 0)) {
+        else if (strcmp(args[0], "dirlist") == 0 && (strcmp(args[1], "-a") == 0 || strcmp(args[1], "-t") == 0) && arg_count == 2) {
             // If valid, proceed with sending it to the server
             write(sockfd, original_command, strlen(original_command)); 
         }
@@ -129,12 +123,10 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(args[0], "w24fz") == 0 && arg_count == 3) {
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 1 && arg_count < 5) {
-            printf("Argument count inside w24ft: %d\n", arg_count);
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24fdb") == 0 && arg_count==2) {
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24fda") == 0 && arg_count==2) {
-            printf("Sending command w24fda\n");
             write(sockfd, original_command, strlen(original_command));
         }
         else if (strcmp(args[0], "quitc") == 0) {
@@ -143,13 +135,13 @@ int main(int argc, char *argv[]) {
             break;
         }
         else {
-                printf("Invalid command. Please enter 'dirlist -a', 'dirlist -t', 'w24fn <filename>', 'quitc', or 'exit'.\n");
+                printf("Invalid command\nPlease enter 'dirlist -a', 'dirlist -t', 'w24fn <filename>', 'w24fz size1 size2', 'w24ft <extension list>', 'w24fdb date', 'w24fda date' or 'quitc'.\n");
                 continue; // Ask for the command again
         }
 
         //------------------------ Read from server ------------------------
             
-        if ((strcmp(args[0], "w24fz") == 0 && arg_count == 3) || (strcmp(args[0], "w24ft") == 0 && arg_count < 4) || (strcmp(args[0], "w24fdb") == 0 && arg_count==2) || (strcmp(args[0], "w24fda") == 0 && arg_count==2)){
+        if ((strcmp(args[0], "w24fz") == 0) || (strcmp(args[0], "w24ft") == 0) || (strcmp(args[0], "w24fdb") == 0) || (strcmp(args[0], "w24fda") == 0)){
             // Special handling for file receive mode
             char *filename = "temp.tar.gz";
             receive_file(sockfd, filename);

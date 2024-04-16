@@ -1021,19 +1021,17 @@ int send_file_to_client(char *file_name, int socket_fd) { // Function to send a 
         
         char *msg = "No file found";
         printf("No file found\n");
-        // printf("File size:- %ld\n", strlen(msg));
         int bt_written = write(socket_fd, msg, strlen(msg));
-        // printf("Bytes written: %d\n", bt_written);
         remove_directory("temp");
         return 0;
     } else{
     
     char *msg = "File is found";
     printf("File is found\n");
-    printf("File size:- %d\n", strlen(msg));
+    // printf("File size:- %d\n", strlen(msg));
     int bt_written = write(socket_fd, msg, strlen(msg));
     
-    printf("Bytes written: %d\n", bt_written);
+    // printf("Bytes written: %d\n", bt_written);
 
     fstat(file_fd, &file_stat);
     off_t file_size = file_stat.st_size;
