@@ -60,7 +60,6 @@ void create_temp_dir();
 void get_tar_w24ft(const char *extensions[],int argc);
 void get_tar_w24fdb(const char *date);
 void search_files_w24fdb(const char *path);
-// time_t parse_birth_time_w24fdb(const char *stat_output);
 void create_temp_dir_w24fd();
 void search_files_w24fda(const char *path);
 void get_tar_w24fda(const char *date);
@@ -71,30 +70,25 @@ char *file_birth_time(const char *file_path);  // Function prototype
 time_t target_date;
 char temp_dir[MAX_PATH_LENGTH];
 //------------------------ w24fda ------------------------
-void get_tar_w24fda(const char *date){
+void get_tar_w24fda(const char *date){ // Function to get tar file of files created after a specific date
     struct tm tm = {0};
     strptime(date, "%Y-%m-%d", &tm);
     target_date = mktime(&tm);
+    
+    create_temp_dir_w24fd();// Create temp directory
 
-    // Create temp directory
-    create_temp_dir_w24fd();
-
-    // Search files and copy them to temp directory
-    const char *home_dir = getenv("HOME");
+    const char *home_dir = getenv("HOME"); // Searching files and copy them to temp directory
     if (home_dir == NULL) {
         fprintf(stderr, "Failed to get user's home directory\n");
         return;
     }
 
-    search_files_w24fda(home_dir);
-    // Create temp.tar.gz archive
+    search_files_w24fda(home_dir); // Search files and copy them to temp directory
+
     const char *temp_folder = "temp";
     if(flagForFDA == 1){
-        create_tar_gz(temp_folder);
+        create_tar_gz(temp_folder); // Create temp.tar.gz archive
     }
-
-    // create_tar_gz(temp_folder);
-     // To remove temp after tar creation
     if (remove_directory(temp_folder) == -1) {
     fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
     return;
@@ -112,8 +106,8 @@ void search_files_w24fda(const char *path) {
     }
      const char *temp_folder = "temp";
     while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; // Skip current directory, parent directory, and temp directory
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) { // Skip current directory, parent directory, and temp directory
+            continue; 
         }
 
         int required_length = snprintf(NULL, 0, "%s/%s", path, entry->d_name);
@@ -124,9 +118,9 @@ void search_files_w24fda(const char *path) {
 
         snprintf(full_path, MAX_PATH_LENGTH, "%s/%s", path, entry->d_name);
 
-        if (lstat(full_path, &statbuf) == -1) {
+        if (lstat(full_path, &statbuf) == -1) { // Get file status
             perror("lstat");
-            continue; // Failed to get file status
+            continue; 
         }
 
         if (S_ISDIR(statbuf.st_mode)) {
@@ -134,16 +128,16 @@ void search_files_w24fda(const char *path) {
             if (strcmp(entry->d_name, temp_folder) == 0 && strcmp(path, getcwd(NULL, 0))==0) {
                 continue;
             }
-            search_files_w24fda(full_path); // Recursively search subdirectories
+            search_files_w24fda(full_path); // Recursively searching subdirectories
         } else if (S_ISREG(statbuf.st_mode)) {
             // Try to get birth time
-            char *stat_output = file_birth_time(full_path);
+            char *stat_output = file_birth_time(full_path); // Get birth time
             if (stat_output != NULL) {
-                time_t birth_time = parse_birth_time_w24fd(stat_output);
+                time_t birth_time = parse_birth_time_w24fd(stat_output); // Parse birth time
                 free(stat_output); // Free allocated memory
                 if (birth_time >= target_date) {
                     flagForFDA = 1;
-                    // Copy file to temp directory
+                    // Copying file to temp directory
                     char dest_path[MAX_PATH_LENGTH];
                     snprintf(dest_path, MAX_PATH_LENGTH, "%s/%s", temp_dir, entry->d_name);
                     int src_fd = open(full_path, O_RDONLY);
@@ -175,8 +169,7 @@ void search_files_w24fda(const char *path) {
     closedir(dir);
 }
 // ----------------- w24fdb -----------------
-// Function to parse birth time from stat output
-time_t parse_birth_time_w24fd(const char *stat_output) {
+time_t parse_birth_time_w24fd(const char *stat_output) { // Function to parse birth time from stat output
     char *line = strtok((char *)stat_output, "\n");
     while (line != NULL) {
         if (strstr(line, "Birth:") != NULL) {
@@ -191,8 +184,7 @@ time_t parse_birth_time_w24fd(const char *stat_output) {
     return -1; // Birth time not found
 }
 
-// Function to create temp directory in the home directory
-void create_temp_dir_w24fd() {
+void create_temp_dir_w24fd() { // Function to create temp directory in the home directory
     char *cwd = getcwd(NULL, 0);
     if (cwd == NULL) {
         perror("getcwd");
@@ -211,8 +203,7 @@ void create_temp_dir_w24fd() {
     }
 }
 
-// Function to search for files in the directory tree rooted at the specified path
-void search_files_w24fdb(const char *path) {
+void search_files_w24fdb(const char *path) { // Function to search files and extract files with birth time before a specific date
     DIR *dir;
     struct dirent *entry;
     struct stat statbuf;
@@ -238,7 +229,7 @@ void search_files_w24fdb(const char *path) {
 
         if (lstat(full_path, &statbuf) == -1) {
             perror("lstat");
-            continue; // Failed to get file status
+            continue; 
         }
 
         if (S_ISDIR(statbuf.st_mode)) {
@@ -287,17 +278,16 @@ void search_files_w24fdb(const char *path) {
     closedir(dir);
 }
 
-void get_tar_w24fdb(const char *date){
-    // Parse target date
-    struct tm tm = {0};
-    strptime(date, "%Y-%m-%d", &tm);
-    tm.tm_hour = 23;
-    tm.tm_min = 59;
-    tm.tm_sec = 59;
-    target_date = mktime(&tm);
+void get_tar_w24fdb(const char *date){ // Function to get tar file of files created before a specific date
+    // Parse target date from input
+    struct tm tm = {0}; // Initialize to all zeros
+    strptime(date, "%Y-%m-%d", &tm); // Parse date string
+    tm.tm_hour = 23; // Set time to 23:59:59
+    tm.tm_min = 59; // Set time to 23:59:59
+    tm.tm_sec = 59; // Set time to 23:59:59
+    target_date = mktime(&tm); // Convert to time_t
 
-    // Create temp directory
-    create_temp_dir_w24fd();
+    create_temp_dir_w24fd(); // Create temp directory
 
     // Search files and copy them to temp directory
     const char *home_dir = getenv("HOME");
@@ -314,8 +304,7 @@ void get_tar_w24fdb(const char *date){
         create_tar_gz(temp_folder);
     }
 
-    // Remove temp directory after tar creation
-    if (remove_directory(temp_folder) == -1) {
+    if (remove_directory(temp_folder) == -1) { // Remove temp directory after tar creation
         fprintf(stderr, "Failed to remove existing temp folder after tar creation\n");
         return;
     }
@@ -323,7 +312,7 @@ void get_tar_w24fdb(const char *date){
 
 // ----------------- w24ft -----------------
 
-int is_file_of_type_w24ft(const char *filename, const char *extension) {
+int is_file_of_type_w24ft(const char *filename, const char *extension) { // Function to check if a file has a specific extension
     size_t filename_len = strlen(filename);
     size_t extension_len = strlen(extension);
     if (filename_len < extension_len + 1)
@@ -331,9 +320,9 @@ int is_file_of_type_w24ft(const char *filename, const char *extension) {
     return strcmp(filename + filename_len - extension_len, extension) == 0;
 }
 
-void search_directory_w24ft(const char *dir_path, const char *extensions[], int num_extensions, int *found, const char *temp_dir) {
-    DIR *dir;
-    struct dirent *entry;
+void search_directory_w24ft(const char *dir_path, const char *extensions[], int num_extensions, int *found, const char *temp_dir) { // Function to search files with specific extensions
+    DIR *dir; // Directory stream
+    struct dirent *entry; // Directory entry
     char full_path[MAX_PATH_LENGTH];
 
     if ((dir = opendir(dir_path)) == NULL) {
@@ -341,7 +330,7 @@ void search_directory_w24ft(const char *dir_path, const char *extensions[], int 
         exit(EXIT_FAILURE);
     }
     
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != NULL) { // Read directory entries
         if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
             // Skip the 'temp' directory
             if (strcmp(entry->d_name, temp_dir) == 0 && strcmp(dir_path, getcwd(NULL, 0))==0) {
@@ -349,10 +338,10 @@ void search_directory_w24ft(const char *dir_path, const char *extensions[], int 
             }
 
             snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
-            search_directory_w24ft(full_path, extensions, num_extensions, found, temp_dir);
+            search_directory_w24ft(full_path, extensions, num_extensions, found, temp_dir); // Recursively search subdirectories
         } else if (entry->d_type == DT_REG) {
             for (int i = 0; i < num_extensions; ++i) {
-                if (is_file_of_type_w24ft(entry->d_name, extensions[i])) {
+                if (is_file_of_type_w24ft(entry->d_name, extensions[i])) { // Check if file has a specific extension
                     printf("%s/%s\n", dir_path, entry->d_name);
                     char source_file[MAX_PATH_LENGTH];
                     char dest_file[MAX_PATH_LENGTH];
@@ -404,7 +393,7 @@ void search_directory_w24ft(const char *dir_path, const char *extensions[], int 
     closedir(dir);
 }
 
-void create_temp_dir() {
+void create_temp_dir() { // Function to create temp directory in the home directory
     const char *temp_folder = "temp";
     // Folder already exists, remove and recreate
     if (remove_directory(temp_folder) == -1) {
@@ -418,7 +407,7 @@ void create_temp_dir() {
     }
 }
 
-void get_tar_w24ft(const char *extensions[],int argc)
+void get_tar_w24ft(const char *extensions[],int argc) // Function to get tar file of files with specific extensions
 { 
     const char *temp_folder = "temp";
     create_temp_dir();
@@ -445,9 +434,9 @@ void get_tar_w24ft(const char *extensions[],int argc)
 }
 // ----------------- w24fz -----------------
 
-void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *temp_folder) {
-    DIR *dir;
-    struct dirent *entry;
+void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *temp_folder) { // Function to search files with specific sizes
+    DIR *dir; // Directory stream
+    struct dirent *entry; // Directory entry
     struct stat statbuf;
     char full_path[MAX_PATH_LENGTH];
 
@@ -467,12 +456,12 @@ void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *
             continue;
         }
 
-        if (S_ISDIR(statbuf.st_mode)) {
+        if (S_ISDIR(statbuf.st_mode)) { // If directory
             // Skip the 'temp' directory
                 if (strcmp(entry->d_name, temp_folder) == 0 && strcmp(path, getcwd(NULL, 0)) == 0){
                 continue;
             }
-            search_files_w24fz(full_path, size1, size2, temp_folder);
+            search_files_w24fz(full_path, size1, size2, temp_folder); // Recursively search subdirectories
         } else if (S_ISREG(statbuf.st_mode)) {
             off_t file_size = statbuf.st_size;
             if (file_size >= size1 && file_size <= size2) {
@@ -487,7 +476,7 @@ void search_files_w24fz(const char *path, off_t size1, off_t size2, const char *
 
     closedir(dir);
 }
-void copy_file_w24fz(const char *src, const char *dest) {
+void copy_file_w24fz(const char *src, const char *dest) { // Function to copy file from source to destination
     int src_fd, dest_fd;
     ssize_t bytes_read;
     char buffer[BUFFER_SIZE];
@@ -521,29 +510,27 @@ void copy_file_w24fz(const char *src, const char *dest) {
     close(src_fd);
     close(dest_fd);
 }
-void create_tar_gz(const char *folder_path) {
+void create_tar_gz(const char *folder_path) { // Function to create tar file of a folder
     pid_t pid = fork();
     if (pid == -1) {
         perror("fork");
         return;
     }
-    if (pid == 0) {
-        // Child process
-        execlp("tar", "tar", "-czf", "temp.tar.gz", folder_path, (char *)NULL);
+    if (pid == 0) {// Child process
+        execlp("tar", "tar", "-czf", "temp.tar.gz", folder_path, (char *)NULL); // Create tar file
         perror("execlp");
         exit(EXIT_FAILURE);
-    } else {
-        // Parent process
+    } else {// Parent process
         int status;
         waitpid(pid, &status, 0);
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { // Check if child process exited normally
             fprintf(stderr, "Failed to create tar file\n");
         } else {
             printf("Tar file created successfully: temp.tar.gz\n");
         }
     }
 }
-int remove_directory(const char *dir_path) {
+int remove_directory(const char *dir_path) { // Function to remove a directory
     pid_t pid;
     int status;
 
@@ -559,7 +546,7 @@ int remove_directory(const char *dir_path) {
         //char *args[] = {"rm", "-rf", dir_path, NULL};
         //execvp(programname, args);
         const char *args[] = {"rm", "-rf", dir_path, NULL};
-        execvp(args[0], (char *const *)args);
+        execvp(args[0], (char *const *)args); // Execute rm -rf command
         // If execvp returns, it must have failed
         perror("Execvp failed");
         exit(EXIT_FAILURE);
@@ -584,7 +571,7 @@ int remove_directory(const char *dir_path) {
         }
     }
 }
-void get_tar_w24fz(off_t size1, off_t size2){
+void get_tar_w24fz(off_t size1, off_t size2){ // Function to get tar file of files with specific sizes
    const char *home_dir = getenv("HOME");
     if (home_dir == NULL) {
         fprintf(stderr, "Failed to get user's home directory\n");
@@ -612,9 +599,9 @@ void get_tar_w24fz(off_t size1, off_t size2){
         }
     }
 
-    search_files_w24fz(home_dir, size1, size2, temp_folder);
-    // Create tar file of the temp folder
-    create_tar_gz(temp_folder);
+    search_files_w24fz(home_dir, size1, size2, temp_folder); // Search files and copy them to temp folder
+    
+    create_tar_gz(temp_folder); // Create tar file of the temp folder
     // To remove temp after tar creation
     printf("Attempting to remove temp folder from: %s\n", getcwd(NULL, 0));
 if (remove_directory(temp_folder) == -1) {
@@ -639,8 +626,6 @@ time_t parse_birth_time(const char *stat_output) {
 }
 // Function to execute the stat command and retrieve output
 char *file_birth_time(const char *file_path) {
-    // char stat_cmd[MAX_COMMAND_LEN];
-    // snprintf(stat_cmd, MAX_COMMAND_LEN, "stat \"%s\"", file_path);
 
     int pipefd[2];
     if (pipe(pipefd) == -1) {
@@ -663,9 +648,7 @@ char *file_birth_time(const char *file_path) {
             exit(EXIT_FAILURE);
         }
 
-        // Execute stat command
-        // system(stat_cmd);
-        execlp("stat", "stat", file_path, NULL);
+        execlp("stat", "stat", file_path, NULL); // Execute stat command
         perror("execlp");
         exit(EXIT_SUCCESS);
     } else { // Parent process
@@ -684,11 +667,9 @@ char *file_birth_time(const char *file_path) {
     }
 }
 int search_file(const char *path, const char *filename, struct FileInfo *file_info) {
-    // printf("Searching for file: %s\n", filename);
-
-    DIR *dir;
-    struct dirent *entry;
-    struct stat statbuf;
+    DIR *dir; // Directory stream
+    struct dirent *entry; // Directory entry
+    struct stat statbuf; // File status
     char full_path[MAX_PATH_LENGTH];
 
     if ((dir = opendir(path)) == NULL) {
@@ -717,9 +698,8 @@ int search_file(const char *path, const char *filename, struct FileInfo *file_in
                 strncpy(file_info->name, entry->d_name, MAX_PATH_LENGTH);
                 strncpy(file_info->location, full_path, MAX_PATH_LENGTH);
                 file_info->size = statbuf.st_size;
-                //file_info->creation_time = statbuf.st_ctime;
-                 // Try to get birth time
-                char *stat_output = file_birth_time(full_path);
+        
+                char *stat_output = file_birth_time(full_path); // Get birth time
                 if (stat_output != NULL) {
                     file_info->creation_time = parse_birth_time(stat_output);
                 //    file_info->creation_time = stat_output;
@@ -738,7 +718,7 @@ int search_file(const char *path, const char *filename, struct FileInfo *file_in
     closedir(dir);
     return 0; // File not found
 }
-void handle_search_file(const char *filename) {
+void handle_search_file(const char *filename) { // Function to search for a file
     struct FileInfo file_info;
     printf("Searching for file in handle_search_file: %s\n", filename);
     const char *home_dir = getenv("HOME");
@@ -750,7 +730,7 @@ void handle_search_file(const char *filename) {
     }
 
     // memset(outputBuff, 0, sizeof(outputBuff));
-    if (search_file(home_dir, filename, &file_info)) {
+    if (search_file(home_dir, filename, &file_info)) { // Search for the file
         offset += snprintf(outputBuff + offset, OUTPUT_BUFF_SIZE - offset, "File found:\n");
         offset += snprintf(outputBuff + offset, OUTPUT_BUFF_SIZE - offset, "Name: %s\n", file_info.name);
         offset += snprintf(outputBuff + offset, OUTPUT_BUFF_SIZE - offset, "Location: %s\n", file_info.location);
@@ -788,13 +768,13 @@ void error(const char *msg) {
     exit(1);
 }
 
-int compare_directories(const void *a, const void *b) {
+int compare_directories(const void *a, const void *b) { // Function to compare directories by birth time
     const struct Directory *dir1 = (const struct Directory *)a;
     const struct Directory *dir2 = (const struct Directory *)b;
     return difftime(dir1->birth_time, dir2->birth_time);
 }
 
-void get_birth_time(const char *dir_name, struct Directory *dir) {
+void get_birth_time(const char *dir_name, struct Directory *dir) { // Function to get birth time of a directory
     int pipefd[2];
     pid_t pid;
 
@@ -814,7 +794,7 @@ void get_birth_time(const char *dir_name, struct Directory *dir) {
         close(pipefd[0]);
         close(pipefd[1]);
 
-        execlp("stat", "stat", "-c", "%w", dir_name, NULL);
+        execlp("stat", "stat", "-c", "%w", dir_name, NULL); // Execute stat command
         perror("execlp");
         exit(EXIT_FAILURE);
     } else {
@@ -836,7 +816,7 @@ void get_birth_time(const char *dir_name, struct Directory *dir) {
 }
 
 
-void list_directories_by_birth_time(const char *home_dir) {
+void list_directories_by_birth_time(const char *home_dir) { // Function to list directories by birth time
     DIR *dir;
     struct dirent *ent;
     struct Directory dirs[MAX_DIRECTORIES];
@@ -857,19 +837,16 @@ void list_directories_by_birth_time(const char *home_dir) {
         perror("opendir");
         exit(EXIT_FAILURE);
     }
+    qsort(dirs, num_dirs, sizeof(struct Directory), compare_directories); // Sort directories by birth time
 
-    // Sort and print directories
-    qsort(dirs, num_dirs, sizeof(struct Directory), compare_directories);
-
-    memset(outputBuff, 0, sizeof(outputBuff));
+    memset(outputBuff, 0, sizeof(outputBuff)); // Clear the output buffer
     for (int i = 0; i < num_dirs; i++) {
-        // Correctly use snprintf to append each directory's name to outputBuff
         snprintf(outputBuff + strlen(outputBuff), sizeof(outputBuff) - strlen(outputBuff), "%s - %s", dirs[i].name, ctime(&dirs[i].birth_time));
     }
 }
 
 // Function to compare directory names for sorting
-int compare_dir_names(const void *a, const void *b) {
+int compare_dir_names(const void *a, const void *b) { // Function to compare directory names for sorting
     const char *dir_name_a = *(const char **)a;
     const char *dir_name_b = *(const char **)b;
 
@@ -956,7 +933,7 @@ void remove_file(const char *filename) {
     }
 }
 
-int send_file_to_client(const char *file_name, int socket_fd) {
+int send_file_to_client(const char *file_name, int socket_fd) { // Function to send a file to the client
     printf("Sending file: %s\n", file_name);
     int file_fd;
     ssize_t bytes_read, bytes_written;
@@ -1011,7 +988,7 @@ int send_file_to_client(const char *file_name, int socket_fd) {
     return 0;
 }
 
-void crequest(int newsockfd) {
+void crequest(int newsockfd) { // Function to handle client requests
     while(1){
             memset(outputBuff, 0, sizeof(outputBuff));
             int n = read(newsockfd, outputBuff, 4096);
@@ -1027,29 +1004,29 @@ void crequest(int newsockfd) {
             printf("Command: %s\n", cmd);
 
             // Check if the command is "dirlist -a"
-            if (strncmp("dirlist -a", outputBuff, 10) == 0) {
+            if (strncmp("dirlist -a", outputBuff, 10) == 0) { // Handle dirlist -a command
                 // executeCommand("ls");
                 const char* HOME_PATH = getenv("HOME");
                 list_directories(HOME_PATH);
                 write(newsockfd, outputBuff, strlen(outputBuff));
-            } else if (strncmp("dirlist -t", outputBuff, 10) == 0) {
+            } else if (strncmp("dirlist -t", outputBuff, 10) == 0) { // Handle dirlist -t command
                 const char* HOME_PATH = getenv("HOME");
                 list_directories_by_birth_time(HOME_PATH);
                 write(newsockfd, outputBuff, strlen(outputBuff));
             } 
-            else if (strncmp("w24fn",cmd, 5) == 0){
+            else if (strncmp("w24fn",cmd, 5) == 0){ // Handle w24fn command
                 char *fileName = strtok(NULL, " ");
                 handle_search_file(fileName);
                 printf("Output buffer: %s\n", outputBuff);
                 write(newsockfd, outputBuff, strlen(outputBuff));
             }
-            else if (strncmp("w24fz",cmd, 5) == 0){
+            else if (strncmp("w24fz",cmd, 5) == 0){ // Handle w24fz command
                 off_t size1 = atoll(strtok(NULL, " "));
                 off_t size2 = atoll(strtok(NULL, " "));
                 get_tar_w24fz(size1,size2);
                 char *filename = "temp.tar.gz";
                 send_file_to_client(filename, newsockfd);
-            } else if (strncmp("w24ft",cmd, 5) == 0){
+            } else if (strncmp("w24ft",cmd, 5) == 0){ // Handle w24ft command
                 char *ext[3]; // Adjust size as needed
                 int arg_count = 0;
                 char *token;
@@ -1071,23 +1048,23 @@ void crequest(int newsockfd) {
                 for (int i = 0; i < arg_count; i++) {
                     free(ext[i]);
                 }
-            }else if (strncmp("w24fdb",cmd, 6) == 0){
+            }else if (strncmp("w24fdb",cmd, 6) == 0){ // Handle w24fdb command
                 char *date = strtok(NULL, " ");
                 get_tar_w24fdb(date);
                 char *filename = "temp.tar.gz";
                 send_file_to_client(filename, newsockfd);
-            }else if (strncmp("w24fda",cmd, 6) == 0){
+            }else if (strncmp("w24fda",cmd, 6) == 0){ // Handle w24fda command
                 char *date = strtok(NULL, " ");
                 get_tar_w24fda(date);
                 char *filename = "temp.tar.gz";
                 send_file_to_client(filename, newsockfd);
             }
             // Check if the command is "quitc" and exit the process
-            else if (strncmp("quitc", outputBuff, 5) == 0) {
+            else if (strncmp("quitc", outputBuff, 5) == 0) { // Handle quitc command
                 printf("Quit command received. Exiting child process.\n");
                 exit(0); // Explicitly exit the child process
             } 
-            else {
+            else { // Handle invalid command
                 char* invalidCommand = "Invalid command\n";
                 write(newsockfd, invalidCommand, strlen(invalidCommand));
             }
@@ -1103,26 +1080,26 @@ int main(int argc, char *argv[]) {
 
     int sockfd, newsockfd, portno;
     socklen_t clilen;
-    struct sockaddr_in serv_addr, cli_addr;
+    struct sockaddr_in serv_addr, cli_addr; // Server and client address structures
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0); // Create a new socket
     if(sockfd < 0) error("Error opening socket.");
 
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    portno = atoi(argv[1]);
+    bzero((char *) &serv_addr, sizeof(serv_addr)); // Clear the server address structure
+    portno = atoi(argv[1]); //  Convert the port number from string to integer
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(portno);
+    serv_addr.sin_family = AF_INET; // Set the address family
+    serv_addr.sin_addr.s_addr = INADDR_ANY; //  Set the address to accept any incoming messages
+    serv_addr.sin_port = htons(portno); //  Convert the port number to network byte order
 
-    if(bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
+    if(bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) // Bind the socket to the address and port number
         error("Binding failed.");
 
-    listen(sockfd, 5);
-    clilen = sizeof(cli_addr);
+    listen(sockfd, 5); // Listen for incoming connections
+    clilen = sizeof(cli_addr); // Get the size of the client address
 
     while(1) {
-        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen); // Accept a new connection
         if(newsockfd < 0) error("Error on accept.");
         printf("Inside mirror-2\n");
         int pid = fork();
@@ -1132,12 +1109,12 @@ int main(int argc, char *argv[]) {
 
         if(pid == 0) { // Child process
             close(sockfd);
-            crequest(newsockfd);
+            crequest(newsockfd); // Handle client requests
             exit(0);
         }
         else {
             close(newsockfd);
-            signal(SIGCHLD, SIG_IGN);
+            signal(SIGCHLD, SIG_IGN); // Prevent zombie processes
         }
     }
 

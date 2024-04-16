@@ -102,14 +102,19 @@ int main(int argc, char *argv[]) {
         strcpy(original_command, command);
 
         // Using strtok to split the command and count arguments
-        char *args[3]; // Array to hold command parts; adjust size if expecting more parts
+        char *args[10]; // Array to hold command parts; adjust size if expecting more parts
+        memset(args, 0, sizeof(args)); // Initialize array to null
         int arg_count = 0;
         char *token = strtok(command, " ");
-        while(token != NULL && arg_count < 3) { // Ensure not to exceed array bounds
+        while(token != NULL) { // Ensure not to exceed array bounds
             args[arg_count++] = token;
             token = strtok(NULL, " ");
         }
+        for (int i = 0; i < arg_count; i++) {
+            printf("Argument %d: %s\n", i, args[i]);
+        }
 
+        printf("Argument count: %d\n", arg_count);
         if (strcmp(args[0], "exit") == 0) {
             printf("Exiting...\n");
             break;
@@ -123,7 +128,8 @@ int main(int argc, char *argv[]) {
             write(sockfd, original_command, strlen(original_command));
         } else if (strcmp(args[0], "w24fz") == 0 && arg_count == 3) {
             write(sockfd, original_command, strlen(original_command));
-        }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 0 && arg_count < 4) {
+        }else if (strcmp(args[0], "w24ft") == 0 && arg_count > 1 && arg_count < 5) {
+            printf("Argument count inside w24ft: %d\n", arg_count);
             write(sockfd, original_command, strlen(original_command));
         }else if (strcmp(args[0], "w24fdb") == 0 && arg_count==2) {
             write(sockfd, original_command, strlen(original_command));
